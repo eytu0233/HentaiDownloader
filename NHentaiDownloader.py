@@ -30,6 +30,7 @@ class NHentaiParser(Parser):
                 raise Exception("Can't parse comic_name!")
             # 剔除windows不合法路徑字元
             comic_name = re.sub('[\\\\<>:"?*/\t]', '', comic_name)
+            comic_name = comic_name.strip()
             logging.debug(f'comic name = \"{comic_name}\"')
 
             a = soup.find('img', 'lazyload')

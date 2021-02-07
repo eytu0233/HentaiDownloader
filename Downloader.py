@@ -35,10 +35,18 @@ class Downloader(QRunnable):
         self.path = path
         self.name = name
         self.pool = pool
+        self.status = STATUS_PENDING
         self.signal = self.DownloadSignal()
+        self.signal.status.connect(self.statusSlot)
 
     def name(self):
         return self.name
+
+    def status(self):
+        return self.status
+
+    def statusSlot(self, status):
+        self.status = status
 
     def start_download(self):
         self.pool.start(self)

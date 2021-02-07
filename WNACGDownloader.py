@@ -35,7 +35,10 @@ class WNACGParser(Parser):
         soup = BeautifulSoup(result, 'html.parser')
         comic_name = soup.find('p', 'download_filename').text
         comic_name = re.sub('[\\\\<>:"?*/\t]', '', comic_name)  # 刪除非法文件名
-        download_url = soup.find('a', 'down_btn')['href']
+        comic_name = comic_name.strip()
+        # 將非ASCII的Unicode字元轉成ASCII
+        download_url = urllib.parse.quote(f"https:{soup.find('a', 'down_btn')['href']}", safe=":/?")
+        logging.debug(f"download url : {download_url}")
 
         self.signal.parsed.emit(WNACGDownloader(self.path, comic_name, self.pool, download_url))
 
