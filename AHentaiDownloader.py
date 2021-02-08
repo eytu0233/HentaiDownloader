@@ -103,9 +103,20 @@ class AHentaiDownloader(Downloader):
                             self.signal.progress.emit(int(self.downloaded / self.pages * 100))
 
                     except Exception as e:
-                        logging.error(e)
-                        logging.error(f"fail download {self.url}/{page}.{self.extension}")
-                        pass
+                        logging.warning(f"{e} : {self.url}/{page}.{self.extension}")
+                        another_ext = 'png' if self.extension == 'jpg' else 'jpg'
+                        try:
+                            another_future = executor.submit(self.download_url,
+                                                             f'{self.url}/{page}.{another_ext}',
+                                                             f'{self.path}\{page}.{another_ext}')
+                            if another_future.result():
+                                self.downloaded += 1
+                                self.signal.progress.emit(int(self.downloaded / self.pages * 100))
+                        except Exception as e:
+                            logging.error(e)
+                            logging.error(
+                                f"fail download {self.url}/{page}.{another_ext}")
+                            pass
 
         except Exception as e:
             raise e
