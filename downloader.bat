@@ -1,1 +1,1 @@
-python C:\Users\Steve\NewWNACGDownloader\main.py
+python E:\document\NewWNACGDownloader\main.py

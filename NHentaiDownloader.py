@@ -25,7 +25,11 @@ class NHentaiParser(Parser):
             req = urllib.request.Request(self.url, headers={'User-Agent': 'Mozilla/5.0'})
             result = urllib.request.urlopen(req, timeout=5).read()
             soup = BeautifulSoup(result, 'html.parser')
-            comic_name = soup.find('h2').text
+            h2 = soup.find('h2', class_='title')
+            if h2 is None:
+                comic_name = soup.find('h1', class_='title').text
+            else:
+                comic_name = h2.text
             if len(comic_name) == 0:
                 raise Exception("Can't parse comic_name!")
             # 剔除windows不合法路徑字元

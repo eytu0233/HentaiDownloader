@@ -51,6 +51,14 @@ class AHentaiParser(Parser):
             extension = match.group(1)
             logging.debug(f'extension = \"{extension}\"')
 
+            try:
+                test_url = f'{url}/{1}.{extension}'
+                req = urllib.request.Request(test_url, headers={'User-Agent': 'Mozilla/5.0'})
+                urllib.request.urlopen(req, timeout=5).read()
+            except Exception as e:
+                extension = 'png' if extension == 'jpg' else 'jpg'
+                logging.warning(f'Download url is error, change extension to {extension}')
+
             self.signal.parsed.emit(AHentaiDownloader(self.path,
                                                       comic_name,
                                                       self.pool,

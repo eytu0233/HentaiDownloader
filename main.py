@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
         self.ui.tableWidgetDownload.setContextMenuPolicy(Qt.CustomContextMenu)
         self.ui.tableWidgetDownload.customContextMenuRequested.connect(self.generate_menu)
 
-        self.ui.lineEditFilePath.setText(u"F:\合集\\")
+        self.ui.lineEditFilePath.setText(u"E:\\video\合集\\")
         self.ui.lineEditDownloadUrl.setText('')
         self.ui.btnStartDownload.pressed.connect(self.click_event)
 
