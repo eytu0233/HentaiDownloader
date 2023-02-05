@@ -16,11 +16,11 @@ class EighteenComicParser(Parser):
         self.id = 0
 
     def check(self):
-        match = re.match('^https?://18comic.org/(photo|album)/(\\d+)', self.url)
+        match = re.match('^https?://18comic.vip/(photo|album)/(\\d+)', self.url)
         if match is not None:
             logging.info(f'parse EighteenComic')
             if match.group(1) == "album":
-                self.url = f'https://18comic.org/photo/{match.group(2)}/'
+                self.url = f'https://18comic.vip/photo/{match.group(2)}/'
             self.id = match.group(2)
             return True
         return False

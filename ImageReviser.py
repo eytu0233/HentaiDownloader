@@ -4,7 +4,7 @@ import sys
 import math
 from PIL import Image
 
-IMAGE_PART_NUM = 10
+IMAGE_PART_NUM = 6
 
 
 def revise_image(image_path):
@@ -41,4 +41,3 @@ if __name__ == '__main__':
                             # logging.FileHandler("{0}/{1}.log".format(logPath, fileName)),
                             logging.StreamHandler(sys.stdout)
                         ])
-    revise_image_dir("F:\合集\[禁漫漢化組] [大見武士] 世にもHな都市伝説L Ladies10 H.S さん（36歳） の場合 (熟花の告白～オンナたちの都市伝説～)")

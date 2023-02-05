@@ -12,19 +12,21 @@ class WNACGParser(Parser):
         super(WNACGParser, self).__init__(url, path, pool)
 
     def check(self):
-        match = re.match('^https?://www.wnacg.(org|com)/photos-index-(page-\\d+)?', self.url)
+        match = re.match('^https?://www.wnacg.(org|com)/photos-index-(aid-\\d+)?', self.url)
         if match is not None:
             logging.info(f'parse_wnacg')
             return True
         return False
 
     def run(self):
+        logging.info("start wnacg")
         match = re.match('https?://www.wnacg.(org|com)/photos-index(-page-\\d+)?-aid-(\\d+).html', self.url)
         if match is None:
-            print(f"\"{url}\" is not match!!")
+            logging.error(f"\"{url}\" is not match!!")
             return None
 
         index = match.group(3)
+        logging.info(f"index = {index}")
 
         req = urllib.request.Request(f"http://www.wnacg.org/download-index-aid-{index}.html", headers={'User-Agent': 'Mozilla/5.0'})
         result = urllib.request.urlopen(req, timeout=5).read()
@@ -37,9 +39,11 @@ class WNACGParser(Parser):
         comic_name = re.sub('[\\\\<>:"?*/\t]', '', comic_name)  # 刪除非法文件名
         comic_name = comic_name.strip()
         # 將非ASCII的Unicode字元轉成ASCII
-        download_url = urllib.parse.quote(f"https:{soup.find('a', 'down_btn')['href']}", safe=":/?")
+        a_tag = soup.find('a', class_="down_btn ads")
+        href_str = a_tag["href"]
+        logging.debug(f'href_str = {href_str}')
+        download_url = urllib.parse.quote(f"https:{href_str}", safe=":/?")
         logging.debug(f"download url : {download_url}")
-
         self.signal.parsed.emit(WNACGDownloader(self.path, comic_name, self.pool, download_url))
 
 

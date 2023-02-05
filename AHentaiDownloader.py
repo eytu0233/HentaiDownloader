@@ -5,6 +5,7 @@ import re
 import urllib.request
 
 from bs4 import BeautifulSoup
+from PIL import Image
 from Downloader import Downloader, Parser, STATUS_DOWNLOADING, STATUS_DOWNLOADED, STATUS_FAIL
 
 
@@ -14,10 +15,10 @@ class AHentaiParser(Parser):
         super(AHentaiParser, self).__init__(url, path, pool)
 
     def check(self):
-        match = re.match('^https?://ahentai.top/index.php.+comic_id=(\\d+).*', self.url)
+        match = re.match('^https?://caitlin.top/index.php.+comic_id=(\\d+).*', self.url)
         if match is not None and match.group(1) is not None:
             logging.info(f'parse AHentai')
-            self.url = f'https://ahentai.top/index.php?route=comic/readOnline&comic_id={match.group(1)}&host_id=0'
+            self.url = f'https://caitlin.top/index.php?route=comic/readOnline&comic_id={match.group(1)}&host_id=0'
             return True
         return False
 
@@ -78,10 +79,15 @@ class AHentaiDownloader(Downloader):
         self.extension = extension
         self.downloaded = 0
 
-    def download_url(self, url, path):
-        urllib.request.urlretrieve(url, path)
+    def download_url(self, url, path, ext):
 
-        return self.download_url(url, path) if os.path.getsize(path) < 1 else True
+        if ext == 'webp':
+            real_path = f"{path}.jpg"
+        else:
+            real_path = f"{path}.{ext}"
+
+        urllib.request.urlretrieve(url, real_path)
+        return self.download_url(url, path, ext) if os.path.getsize(real_path) < 1 else True
 
     def run(self):
         logging.info(f'Downloading : \"{self.path}\"')
@@ -101,7 +107,8 @@ class AHentaiDownloader(Downloader):
                 future_to_url = {
                     executor.submit(self.download_url,
                                     f'{self.url}/{page}.{self.extension}',
-                                    f'{self.path}\{page}.{self.extension}'): page for page in range(1, self.pages + 1)}
+                                    f'{self.path}\{page}',
+                                    self.extension): page for page in range(1, self.pages + 1)}
                 for future in concurrent.futures.as_completed(future_to_url):
                     page = future_to_url[future]
 
@@ -116,7 +123,8 @@ class AHentaiDownloader(Downloader):
                         try:
                             another_future = executor.submit(self.download_url,
                                                              f'{self.url}/{page}.{another_ext}',
-                                                             f'{self.path}\{page}.{another_ext}')
+                                                             f'{self.path}\{page}',
+                                                             another_ext)
                             if another_future.result():
                                 self.downloaded += 1
                                 self.signal.progress.emit(int(self.downloaded / self.pages * 100))

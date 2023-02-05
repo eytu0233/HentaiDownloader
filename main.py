@@ -11,6 +11,7 @@ from EighteenComicDownloader import EighteenComicParser
 from NHentaiDownloader import NHentaiParser
 from WNACGDownloader import WNACGParser
 from AHentaiDownloader import AHentaiParser
+from ImHentaiDownloader import ImHentaiParser
 from ui import Ui_MainWindow
 
 STATUS_PENDING = '列隊中'
@@ -61,6 +62,7 @@ class MainWindow(QMainWindow):
         self.wnacgThreadPool.setMaxThreadCount(1)
         self.eighteenComicThreadPool = QThreadPool()
         self.ahentaiThreadPool = QThreadPool()
+        self.imhentaiThreadPool = QThreadPool()
 
     def generate_menu(self, pos):
         row_num = -1
@@ -105,7 +107,8 @@ class MainWindow(QMainWindow):
             NHentaiParser(url, path, self.nhentaiThreadPool),
             WNACGParser(url, path, self.wnacgThreadPool),
             EighteenComicParser(url, path, self.eighteenComicThreadPool),
-            AHentaiParser(url, path, self.ahentaiThreadPool)
+            AHentaiParser(url, path, self.ahentaiThreadPool),
+            ImHentaiParser(url, path, self.imhentaiThreadPool)
         ]
 
         for parser in parsers:
