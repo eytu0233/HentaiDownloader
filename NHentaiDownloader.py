@@ -26,7 +26,7 @@ class NHentaiParser(Parser):
             cj = browser_cookie3.chrome(domain_name='nhentai.net')
             logging.debug(cj)
             opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-            opener.addheaders = [('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36')]
+            opener.addheaders = [('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36')]
             urllib.request.install_opener(opener)
             req = urllib.request.Request(self.url)
             result = urllib.request.urlopen(req, timeout=5).read()
