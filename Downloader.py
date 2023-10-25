@@ -1,10 +1,14 @@
 import abc
+import re
+import logging
 
 from PySide2.QtCore import QObject, Signal, QRunnable
 
 STATUS_PENDING = '列隊中'
 STATUS_DOWNLOADING = '下載中'
 STATUS_DOWNLOADED = '下載完成'
+STATUS_UNZIPING = '解壓縮中'
+STATUS_UNZIP = '解壓縮完成'
 STATUS_FAIL = '下載失敗'
 
 
@@ -51,4 +55,7 @@ class Downloader(QRunnable):
     def start_download(self):
         self.pool.start(self)
 
-
+    @staticmethod
+    def remove_content_between_backslash_and_bracket(s):
+        # 使用正则表达式替换 \ 和 [ 之间的所有内容，只留下 \ 和 [
+        return re.sub(r'(\\)[^\\\[]*?(\[)', r'\1\2', s)
