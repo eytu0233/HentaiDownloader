@@ -1,8 +1,14 @@
+import base64
 import concurrent.futures
+import hashlib
 import logging
+import math
 import os
 import re
 import urllib.request
+
+from PIL import Image
+
 import ImageReviser
 
 from bs4 import BeautifulSoup
@@ -16,12 +22,13 @@ class EighteenComicParser(Parser):
         self.id = 0
 
     def check(self):
-        match = re.match('^https?://18comic.vip/(photo|album)/(\\d+)', self.url)
+        match = re.match('^https?://18comic.(org|vip)/(photo|album)/(\\d+)', self.url)
         if match is not None:
             logging.info(f'parse EighteenComic')
-            if match.group(1) == "album":
-                self.url = f'https://18comic.vip/photo/{match.group(2)}/'
-            self.id = match.group(2)
+            logging.info(f'{match.group(1)} {match.group(2)} {match.group(3)}')
+            if match.group(2) == "album":
+                self.url = f'https://18comic.org/photo/{match.group(3)}/'
+            self.id = match.group(3)
             return True
         return False
 
@@ -42,24 +49,32 @@ class EighteenComicParser(Parser):
             comic_name = comic_name.strip()
             logging.debug(f'comic name = \"{comic_name}\"')
 
-            pages = int(soup.find('span', id='maxpage').text.strip())
+            pages = 0
+            page_spans = soup.find_all('span', id='nowpage')
+            for page_span in page_spans:
+                page = int(page_span.text)
+                if page > pages:
+                    pages = page
+            logging.debug(f'pages = \"{pages}\"')
 
             match = re.search('scramble_id = (\\d+)', result.decode('utf-8'))
             if match is None or match.group(1) is None:
                 raise Exception(f"Can't parse scramble_id")
             scramble_id = match.group(1)
+            logging.debug(f'scramble_id = \"{scramble_id}\"')
 
             match = re.search('aid = (\\d+)', result.decode('utf-8'))
             if match is None or match.group(1) is None:
                 raise Exception(f"Can't parse aid")
             aid = match.group(1)
+            logging.debug(f'aid = \"{aid}\"')
 
             self.signal.parsed.emit(EighteenComicDownloader(self.path,
                                                             comic_name,
                                                             self.pool,
                                                             self.id,
                                                             pages,
-                                                            int(aid) > int(scramble_id)))
+                                                            True))
             self.path = f'{self.path}{comic_name}'
         except Exception as e:
             logging.error(e)
@@ -73,11 +88,54 @@ class EighteenComicDownloader(Downloader):
         self.pages = pages
         self.downloaded = 0
         self.is_scramble = is_scramble
+        self.file_ext = 'webp'
 
-    def download_url(self, url, path):
+    def download_url(self, url, path, page):
         urllib.request.urlretrieve(url, path)
 
-        return self.download_url(url, path) if os.path.getsize(path) < 1 else True
+        ret = False
+        if os.path.getsize(path) < 1:
+            ret = self.download_url(url, path)
+        else:
+            ret = True
+            if self.is_scramble:
+                self.image_post_process(page)
+
+        return ret
+
+    @staticmethod
+    def revise_image(image_path, split_num):
+        image = Image.open(image_path)
+        width, height = image.size
+
+        revised_img = Image.new('RGB', image.size)
+        remainder = int(height % split_num)
+        copy_width = width
+        for i in range(split_num):
+            copy_height = math.floor(height / split_num)
+            py = copy_height * i
+            y = height - (copy_height * (i + 1)) - remainder
+            if i == 0:
+                copy_height = copy_height + remainder
+            else:
+                py = py + remainder
+
+            cropped_img = image.crop((0, y, copy_width, y + copy_height))
+            revised_area = (0, py, copy_width, py + copy_height)
+            revised_img.paste(cropped_img, revised_area)
+        revised_img.save(image_path)
+
+    def image_post_process(self, page):
+        combine = f'{self.id}{str(page).zfill(5)}'
+        #logging.debug(f'combine=\'{combine}\'')
+        md5_hash = hashlib.md5(combine.encode()).hexdigest()
+        #logging.debug(f'md5_hash={md5_hash}')
+        last_char = md5_hash[-1]
+        ascii_value = ord(last_char)
+        split_num = 2 + (ascii_value % 8) * 2
+        #logging.debug(f'split_num={split_num}')
+
+        self.revise_image(f'{self.path}\{page}.{self.file_ext}', split_num)
 
     def run(self):
         logging.info(f'Downloading : \"{self.path}\"')
@@ -96,8 +154,9 @@ class EighteenComicDownloader(Downloader):
             with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
                 future_to_url = {
                     executor.submit(self.download_url,
-                                    f'https://cdn-msp.18comic.org/media/photos/{self.id}/{str(page).zfill(5)}.jpg',
-                                    f'{self.path}\{page}.jpg'): page for page in range(1, self.pages + 1)}
+                                    f'https://cdn-msp.18comic.org/media/photos/{self.id}/{str(page).zfill(5)}.{self.file_ext}',
+                                    f'{self.path}\{page}.{self.file_ext}', page): page for page in range(1, self.pages + 1)
+                }
                 for future in concurrent.futures.as_completed(future_to_url):
                     page = future_to_url[future]
 
@@ -105,13 +164,11 @@ class EighteenComicDownloader(Downloader):
                         if future.result():
                             self.downloaded += 1
                             self.signal.progress.emit(int(self.downloaded / self.pages * 100))
-                            if self.is_scramble:
-                                ImageReviser.revise_image(f'{self.path}\{page}.jpg')
 
                     except Exception as e:
                         logging.error(e)
                         logging.error(f"fail download https://cdn-msp.18comic.org/media/photos/"
-                                      f"{self.id}/{str(page).zfill(5)}.jpg")
+                                      f"{self.id}/{str(page).zfill(5)}.{self.file_ext}")
                         pass
 
         except Exception as e:

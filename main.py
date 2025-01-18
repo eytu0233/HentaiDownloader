@@ -41,7 +41,7 @@ class MainWindow(QMainWindow):
         self.ui.tableWidgetDownload.setContextMenuPolicy(Qt.CustomContextMenu)
         self.ui.tableWidgetDownload.customContextMenuRequested.connect(self.generate_menu)
 
-        self.ui.lineEditFilePath.setText(u"E:\\video\合集\\")
+        self.ui.lineEditFilePath.setText(u"E:\\video\合集\\downloads\\")
         self.ui.lineEditDownloadUrl.setText('')
         self.ui.btnStartDownload.pressed.connect(self.click_event)
 
@@ -76,6 +76,7 @@ class MainWindow(QMainWindow):
             rearrange_action = menu.addAction(u'圖片修正')
             action = menu.exec_(self.ui.tableWidgetDownload.mapToGlobal(pos + QPoint(0, 30)))
             if action == copy_url_action:
+                logging.debug(f'row_num : {row_num} url : {self.parserList[row_num].url}')
                 self.clipBoard.setText(self.parserList[row_num].url)
             if action == redownload_action:
                 logging.debug(f'item2')
@@ -145,7 +146,6 @@ class MainWindow(QMainWindow):
         downloader.signal.status.connect(status_cell.setText)
         downloader.signal.progress.connect(progress_bar_cell.setValue)
         downloader.start_download()
-
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,

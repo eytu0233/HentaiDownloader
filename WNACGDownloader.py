@@ -1,7 +1,9 @@
 import logging
 import os
 import re
+import ssl
 import urllib.request
+import winreg
 
 import browser_cookie3
 import requests
@@ -69,6 +71,43 @@ class WNACGDownloader(Downloader):
         self.url = url
         self.name = name
         self.dir_path = path
+        self.chrome_ver = 0
+
+    @staticmethod
+    def extract_number_before_dot(string):
+        # 找到第一个点号的位置
+        dot_index = string.find('.')
+
+        # 如果找到了点号
+        if dot_index != -1:
+            # 从字符串中提取点号前面的部分
+            number_string = string[:dot_index]
+            # 使用isdigit()方法检查该部分是否全部由数字组成
+            if number_string.isdigit():
+                return int(number_string)
+
+        # 如果找不到点号或者点号前面不是数字，则返回 None
+        return None
+
+    def get_chrome_version(self):
+        # Chrome 在注册表中的路径
+        reg_path = r"SOFTWARE\Google\Chrome\BLBeacon"
+
+        if self.chrome_ver != 0:
+            return None
+
+        try:
+            # 打开注册表
+            reg_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_READ)
+            # 读取 Chrome 的版本信息
+            version, _ = winreg.QueryValueEx(reg_key, "version")
+            # 关闭注册表
+            winreg.CloseKey(reg_key)
+            self.chrome_ver = self.extract_number_before_dot(version)
+            return version
+        except Exception as e:
+            logging.error(f'get_chrome_version {e}')
+            return None
 
     def get_cookies_as_dict(self, domain):
         # Get cookies for the specified domain from all available browsers
@@ -82,15 +121,18 @@ class WNACGDownloader(Downloader):
         return cookies_dict
 
     def run(self):
+        self.get_chrome_version()
         self.signal.status.emit(STATUS_DOWNLOADING)
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
+            'User-Agent': f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{self.chrome_ver}.0.0.0 Safari/537.36'
         }
-        cookies = self.get_cookies_as_dict('.wzip.download')
-        logging.info(cookies)
+        #cookies = self.get_cookies_as_dict('.wzip.download')
+        #logging.info(cookies)
 
         # Download the resource
-        response = requests.get(self.url, headers=headers, cookies=cookies, stream=True)
+        #ssl._create_default_https_context = ssl._create_unverified_context
+        #response = requests.get(self.url, headers=headers, cookies=cookies, stream=True, verify=False)
+        response = requests.get(self.url, headers=headers , stream=True, verify=False)
         response.raise_for_status()
 
         content_length = int(response.headers.get('Content-Length'))
@@ -113,7 +155,11 @@ class WNACGDownloader(Downloader):
         logging.info(f"target_dir = {target_dir}")
 
         self.signal.status.emit(STATUS_UNZIPING)
-        self.extract_deflate64_zip(self.path, self.dir_path, target_dir)
+        try:
+            self.extract_deflate64_zip(self.path, self.dir_path, target_dir)
+        except Exception as e:
+            logging.error(e)
+            self.signal.status.emit(STATUS_UNZIP_FAIL)
         self.signal.status.emit(STATUS_UNZIP)
 
     @staticmethod
@@ -126,7 +172,12 @@ class WNACGDownloader(Downloader):
             tempfile_path = f"{exist_dir}tmp.zip"
             os.chdir(exist_dir)
             os.rename(zip_file_path, tempfile_path)
-            with zipfile2.ZipFile(tempfile_path, 'r') as zip_ref:
-                zip_ref.extractall(dest_dir)
-            if os.path.exists(tempfile_path):
-                os.remove(tempfile_path)
+            try:
+                with zipfile2.ZipFile(tempfile_path, 'r') as zip_ref:
+                    zip_ref.extractall(dest_dir)
+            except Exception as e:
+                raise e
+            finally:
+                if os.path.exists(tempfile_path):
+                    os.remove(tempfile_path)
+

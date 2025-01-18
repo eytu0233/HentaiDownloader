@@ -9,6 +9,7 @@ STATUS_DOWNLOADING = '下載中'
 STATUS_DOWNLOADED = '下載完成'
 STATUS_UNZIPING = '解壓縮中'
 STATUS_UNZIP = '解壓縮完成'
+STATUS_UNZIP_FAIL = '解壓縮完成'
 STATUS_FAIL = '下載失敗'
 
 
@@ -56,6 +57,17 @@ class Downloader(QRunnable):
         self.pool.start(self)
 
     @staticmethod
-    def remove_content_between_backslash_and_bracket(s):
-        # 使用正则表达式替换 \ 和 [ 之间的所有内容，只留下 \ 和 [
-        return re.sub(r'(\\)[^\\\[]*?(\[)', r'\1\2', s)
+    def keep_last_bracket_group(text):
+        # 使用正則表達式找到所有方括號組
+        matches = re.findall(r'\[.*?\]', text)
+
+        if matches:
+            # 找到最後一組方括號
+            last_match = matches[-1]
+            # 在原始字串中查找該最後匹配的方括號並保留它後面的所有內容
+            last_index = text.rfind(last_match)
+            return text[last_index:]
+        else:
+            # 如果找不到方括號組，返回原始字串
+            return text
+
