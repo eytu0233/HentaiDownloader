@@ -3,9 +3,9 @@ import logging
 import os
 import re
 import urllib.request
+import json
 
 from bs4 import BeautifulSoup
-from PIL import Image
 from Downloader import Downloader, Parser, STATUS_DOWNLOADING, STATUS_DOWNLOADED, STATUS_FAIL
 
 
@@ -34,60 +34,66 @@ class AHentaiParser(Parser):
             comic_name = comic_name.strip()
             logging.debug(f'comic name = \"{comic_name}\"')
 
-            match = re.search('HTTP_IMAGE.+\"(.+)\"', result.decode('utf-8'))
+            match = re.search('Image_List = (\[.+\]);', result.decode('utf-8'))
             if match is None or match.group(1) is None:
-                raise Exception(f"Can't parse url")
-            url = f"http:{match.group(1)}"
-            logging.debug(f'url = \"{url}\"')
+                raise Exception(f"Can't parse image list")
+            image_list_str = match.group(1)
+            image_list = json.loads(image_list_str)
+            #logging.debug(f'image_list = \"{image_list}\"')
 
-            match = re.search('Image_List = .+\"(\\d+)\"', result.decode('utf-8'))
+            match = re.search('IMAGE_SERVER = (.+);', result.decode('utf-8'))
             if match is None or match.group(1) is None:
-                raise Exception(f"Can't parse page")
-            pages = int(match.group(1))
-            logging.debug(f'pages = \"{pages}\"')
+                raise Exception(f"Can't parse image server")
+            image_server_str = match.group(1)
+            image_server_str = image_server_str.replace(r'\/', '/')
+            image_server = json.loads(image_server_str)
+            logging.debug(f'image_server = \"{image_server}\"')
 
-            match = re.search('Image_List = .+\"extension\":\"(.+)\"', result.decode('utf-8'))
+            match = re.search('IMAGE_FOLDER = \"(.+)\";', result.decode('utf-8'))
             if match is None or match.group(1) is None:
-                raise Exception(f"Can't parse extension")
-            extension = match.group(1)
-            logging.debug(f'extension = \"{extension}\"')
+                raise Exception(f"Can't parse image folder")
+            image_folder = match.group(1)
+            logging.debug(f'image_folder = \"{image_folder}\"')
 
-            try:
-                test_url = f'{url}/{1}.{extension}'
-                req = urllib.request.Request(test_url, headers={'User-Agent': 'Mozilla/5.0'})
-                urllib.request.urlopen(req, timeout=5).read()
-            except Exception as e:
-                extension = 'png' if extension == 'jpg' else 'jpg'
-                logging.warning(f'Download url is error, change extension to {extension}')
+            match = re.search('image_server_id = (\\d+);', result.decode('utf-8'))
+            if match is None or match.group(1) is None:
+                raise Exception(f"Can't parse image server id")
+            image_server_id = match.group(1)
+            logging.debug(f'image_server_id = \"{image_server_id}\"')
 
+            download_info_list = []
+            num = 0
+
+            for image in image_list:
+                num += 1
+                page = int(image['sort'])
+                idx = page % 10
+                ext = image['extension']
+                download_url = f'http:{image_server[image_server_id][idx]}{image_folder}{page}.{ext}'
+                #logging.debug(f'download_url[{num}] = \"{download_url}\"')
+                download_info_list.append({
+                    'url': download_url,
+                    'filename': f'{page}.{ext}'
+                })
             self.signal.parsed.emit(AHentaiDownloader(self.path,
                                                       comic_name,
                                                       self.pool,
-                                                      url,
-                                                      pages,
-                                                      extension))
+                                                      download_info_list))
         except Exception as e:
             logging.error(e)
 
 
 class AHentaiDownloader(Downloader):
 
-    def __init__(self, path, name, pool, url, pages, extension):
+    def __init__(self, path, name, pool, download_info_list):
         super(AHentaiDownloader, self).__init__(f'{path}{name}', name, pool)
-        self.url = url
-        self.pages = pages
-        self.extension = extension
+        self.pages = len(download_info_list)
+        self.download_info_list = download_info_list
         self.downloaded = 0
 
-    def download_url(self, url, path, ext):
-
-        if ext == 'webp':
-            real_path = f"{path}.jpg"
-        else:
-            real_path = f"{path}.{ext}"
-
-        urllib.request.urlretrieve(url, real_path)
-        return self.download_url(url, path, ext) if os.path.getsize(real_path) < 1 else True
+    def download_url(self, url, path):
+        urllib.request.urlretrieve(url, path)
+        return self.download_url(url, path) if os.path.getsize(path) < 1 else True
 
     def run(self):
         logging.info(f'Downloading : \"{self.path}\"')
@@ -106,9 +112,8 @@ class AHentaiDownloader(Downloader):
             with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
                 future_to_url = {
                     executor.submit(self.download_url,
-                                    f'{self.url}/{page}.{self.extension}',
-                                    f'{self.path}\{page}',
-                                    self.extension): page for page in range(1, self.pages + 1)}
+                                    info["url"],
+                                    f'{self.path}\{info["filename"]}'): info for info in self.download_info_list}
                 for future in concurrent.futures.as_completed(future_to_url):
                     page = future_to_url[future]
 
