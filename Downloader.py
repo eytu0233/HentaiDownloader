@@ -9,7 +9,7 @@ STATUS_DOWNLOADING = '下載中'
 STATUS_DOWNLOADED = '下載完成'
 STATUS_UNZIPING = '解壓縮中'
 STATUS_UNZIP = '解壓縮完成'
-STATUS_UNZIP_FAIL = '解壓縮完成'
+STATUS_UNZIP_FAIL = '解壓縮失敗'
 STATUS_FAIL = '下載失敗'
 
 

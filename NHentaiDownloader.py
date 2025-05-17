@@ -5,9 +5,20 @@ import re
 import urllib.request
 import browser_cookie3
 import winreg
+import rookiepy
+import sqlite3
+import json
+from Crypto.Cipher import AES # 需要安装 pycryptodomex 包支持AES加解密功能
 
 from bs4 import BeautifulSoup
 from Downloader import Downloader, Parser, STATUS_DOWNLOADING, STATUS_DOWNLOADED, STATUS_FAIL
+
+def get_chrome_info():
+    chrome_cookie = browser_cookie3.chrome(domain_name='nhentai.net')
+    return chrome_cookie
+    #rcookies = rookiepy.chrome()
+    #return rookiepy.to_cookiejar(rcookies)
+
 
 
 class NHentaiParser(Parser):
@@ -61,13 +72,14 @@ class NHentaiParser(Parser):
 
     def run(self):
         try:
-            #cj = browser_cookie3.chrome(domain_name='nhentai.net')
+            #cj = get_chrome_info()
             #logging.debug(cj)
             self.get_chrome_version()
             logging.info(f'chrome version = {self.chrome_ver}')
-            #opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+            # opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
             opener = urllib.request.build_opener()
-            opener.addheaders = [('User-Agent', f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{self.chrome_ver}.0.0.0 Safari/537.36')]
+            opener.addheaders = [('User-Agent',
+                                  f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{self.chrome_ver}.0.0.0 Safari/537.36')]
             urllib.request.install_opener(opener)
             req = urllib.request.Request(self.url)
             result = urllib.request.urlopen(req, timeout=5).read()
@@ -80,7 +92,7 @@ class NHentaiParser(Parser):
             if len(comic_name) == 0:
                 raise Exception("Can't parse comic_name!")
             # 剔除windows不合法路徑字元
-            comic_name = re.sub('[\\\\<>:"?*/\t]', '', comic_name)
+            comic_name = re.sub('[\\\\<>:"?*/\t|]', '', comic_name)
             comic_name = comic_name.strip()
             logging.debug(f'comic name = \"{comic_name}\"')
 
@@ -152,7 +164,8 @@ class NHentaiParser(Parser):
             ext2 = match.group(4)
             logging.debug(f'ext2 = {ext2}')
 
-            self.signal.parsed.emit(NHentaiDownloader(self.path, comic_name, self.pool, media_id, pages, ext, ext2, backup))
+            self.signal.parsed.emit(
+                NHentaiDownloader(self.path, comic_name, self.pool, media_id, pages, ext, ext2, backup))
         except Exception as e:
             logging.error(e)
 
@@ -184,7 +197,8 @@ class NHentaiDownloader(Downloader):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
                 future_to_url = {
-                    executor.submit(self.download_url, f'https://i{self.backup}.nhentai.net/galleries/{self.id}/{page}.{self.ext}',
+                    executor.submit(self.download_url,
+                                    f'https://i{self.backup}.nhentai.net/galleries/{self.id}/{page}.{self.ext}',
                                     f'{self.path}\{page}.{self.ext}'): page for page in range(1, self.pages + 1)}
                 for future in concurrent.futures.as_completed(future_to_url):
                     page = future_to_url[future]
@@ -196,7 +210,8 @@ class NHentaiDownloader(Downloader):
                             # logging.info(f'Finished {self.downloaded}/{self.pages} : {progress}%')
 
                     except Exception as e:
-                        logging.warning(f"{e} : https://i{self.backup}.nhentai.net/galleries/{self.id}/{page}.{self.ext}")
+                        logging.warning(
+                            f"{e} : https://i{self.backup}.nhentai.net/galleries/{self.id}/{page}.{self.ext}")
                         try:
                             another_future = executor.submit(self.download_url,
                                                              f'https://i{self.backup}.nhentai.net/galleries/{self.id}/{page}.{self.ext2}',

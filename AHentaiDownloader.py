@@ -30,7 +30,7 @@ class AHentaiParser(Parser):
 
             comic_name = soup.find('span', {"class": "d"}).text
             # 剔除windows不合法路徑字元
-            comic_name = re.sub('[\\\\<>:"?*/\t]', '', comic_name)
+            comic_name = re.sub('[\\\\<>:"?*/\t|]', '', comic_name)
             comic_name = comic_name.strip()
             logging.debug(f'comic name = \"{comic_name}\"')
 
@@ -68,17 +68,21 @@ class AHentaiParser(Parser):
                 num += 1
                 page = int(image['sort'])
                 idx = page % 10
-                ext = image['extension']
+                ext = image['extension'] if image['extension'] in {"gif", "webp", "avif"} else "jpg"
                 download_url = f'http:{image_server[image_server_id][idx]}{image_folder}{page}.{ext}'
                 #logging.debug(f'download_url[{num}] = \"{download_url}\"')
                 download_info_list.append({
                     'url': download_url,
                     'filename': f'{page}.{ext}'
                 })
-            self.signal.parsed.emit(AHentaiDownloader(self.path,
+            if num > 0:
+                self.signal.parsed.emit(AHentaiDownloader(self.path,
                                                       comic_name,
                                                       self.pool,
                                                       download_info_list))
+            else:
+                raise Exception("Can NOT find download url!")
+
         except Exception as e:
             logging.error(e)
 

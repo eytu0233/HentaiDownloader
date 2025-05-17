@@ -10,7 +10,7 @@ import requests
 import zipfile2
 
 from bs4 import BeautifulSoup
-from Downloader import Downloader, Parser, STATUS_DOWNLOADING, STATUS_DOWNLOADED, STATUS_FAIL, STATUS_UNZIPING, \
+from Downloader import Downloader, Parser, STATUS_DOWNLOADING, STATUS_DOWNLOADED, STATUS_UNZIP_FAIL, STATUS_UNZIPING, \
     STATUS_UNZIP
 
 
@@ -53,7 +53,7 @@ class WNACGParser(Parser):
 
         soup = BeautifulSoup(result, 'html.parser')
         comic_name = soup.find('p', 'download_filename').text
-        comic_name = re.sub('[\\\\<>:"?*/\t]', '', comic_name)  # 刪除非法文件名
+        comic_name = re.sub('[\\\\<>:"?*/\t|]', '', comic_name)  # 刪除非法文件名
         comic_name = comic_name.strip()
         # 將非ASCII的Unicode字元轉成ASCII
         a_tag = soup.find('a', class_="down_btn ads")

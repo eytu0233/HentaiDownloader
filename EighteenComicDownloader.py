@@ -45,7 +45,7 @@ class EighteenComicParser(Parser):
             comic_name = match.group(1)
 
             # 剔除windows不合法路徑字元
-            comic_name = re.sub('[\\\\<>:"?*/\t]', '', comic_name)
+            comic_name = re.sub('[\\\\<>:"?*/\t|]', '', comic_name)
             comic_name = comic_name.strip()
             logging.debug(f'comic name = \"{comic_name}\"')
 

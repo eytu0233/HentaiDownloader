@@ -63,7 +63,7 @@ class EHentaiParser(Parser):
             if len(comic_name) == 0:
                 raise Exception("Can't parse comic_name!")
             # 剔除windows不合法路徑字元
-            comic_name = re.sub('[\\\\<>:"?*/\t]', '', comic_name)
+            comic_name = re.sub('[\\\\<>:"?*/\t|]', '', comic_name)
             logging.debug(f'comic name = \"{comic_name}\"')
 
             tds = soup.find_all('td', class_='gdt2')
