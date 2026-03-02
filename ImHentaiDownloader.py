@@ -93,6 +93,14 @@ class ImHentaiDownloader(Downloader):
     def run(self):
         logging.info(f'Downloading : \"{self.path}\"')
 
+        # 檢查目錄是否已存在且非空
+        if self.check_directory_exists(self.path):
+            logging.info(f'Directory already exists and not empty, skipping download: \"{self.path}\"')
+            self.signal.status.emit(STATUS_DOWNLOADED)
+            self.signal.progress.emit(100)
+            self.signal.finished.emit()
+            return
+
         try:
             if not os.path.exists(self.path):
                 os.makedirs(self.path)

@@ -90,7 +90,7 @@ class AHentaiParser(Parser):
 class AHentaiDownloader(Downloader):
 
     def __init__(self, path, name, pool, download_info_list):
-        super(AHentaiDownloader, self).__init__(f'{path}{name}', name, pool)
+        super(AHentaiDownloader, self).__init__(f'{path}{self.format_name(name)}', name, pool)
         self.pages = len(download_info_list)
         self.download_info_list = download_info_list
         self.downloaded = 0
@@ -101,6 +101,14 @@ class AHentaiDownloader(Downloader):
 
     def run(self):
         logging.info(f'Downloading : \"{self.path}\"')
+
+        # 檢查目錄是否已存在且非空
+        if self.check_directory_exists(self.path):
+            logging.info(f'Directory already exists and not empty, skipping download: \"{self.path}\"')
+            self.signal.status.emit(STATUS_DOWNLOADED)
+            self.signal.progress.emit(100)
+            self.signal.finished.emit()
+            return
 
         opener = urllib.request.build_opener()
         opener.addheaders = [('User-Agent',

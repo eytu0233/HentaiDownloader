@@ -99,7 +99,7 @@ class NHentaiParser(Parser):
             a = soup.find('img', 'lazyload')
             data_src = a['data-src']
             logging.debug(f'data_src = \"{data_src}\"')
-            match = re.match('https://t.*.nhentai.net/galleries/(\\d+)/cover.*', data_src)
+            match = re.match('//t.*.nhentai.net/galleries/(\\d+)/cover.*', data_src)
             if match is None or match.group(1) is None:
                 raise Exception("Can't parse media_id!")
 
@@ -142,7 +142,7 @@ class NHentaiParser(Parser):
             section = soup.find('section', id='image-container')
             img = section.find('img')
             logging.debug(f'img = {img}')
-            match = re.match('https://i(\\d+).nhentai.net/galleries/(\\d+)/(\\d+).([a-zA-Z]+)', img['src'])
+            match = re.match('//i(\\d+).nhentai.net/galleries/(\\d+)/(\\d+).([a-zA-Z]+)', img['src'])
             if match is None or match.group(1) is None:
                 raise Exception("Can't parse url backup!")
             backup = match.group(1)
@@ -158,7 +158,7 @@ class NHentaiParser(Parser):
             section = soup.find('section', id='image-container')
             img = section.find('img')
             logging.debug(f'img = {img}')
-            match = re.match('https://i(\\d+).nhentai.net/galleries/(\\d+)/(\\d+).([a-zA-Z]+)', img['src'])
+            match = re.match('//i(\\d+).nhentai.net/galleries/(\\d+)/(\\d+).([a-zA-Z]+)', img['src'])
             if match is None or match.group(4) is None:
                 raise Exception("Can't parse ext2!")
             ext2 = match.group(4)
@@ -173,7 +173,7 @@ class NHentaiParser(Parser):
 class NHentaiDownloader(Downloader):
 
     def __init__(self, path, name, pool, id, pages, ext, ext2, backup):
-        super(NHentaiDownloader, self).__init__(f'{path}{name}', name, pool)
+        super(NHentaiDownloader, self).__init__(f'{path}{self.format_name(name)}', name, pool)
         self.id = id
         self.pages = pages
         self.ext = ext
@@ -190,6 +190,14 @@ class NHentaiDownloader(Downloader):
         logging.info(f'Downloading : \"{self.path}\"')
 
         try:
+            # 檢查目錄是否已存在且非空
+            if self.check_directory_exists(self.path):
+                logging.info(f'Directory already exists and not empty, skipping download: \"{self.path}\"')
+                self.signal.status.emit(STATUS_DOWNLOADED)
+                self.signal.progress.emit(100)
+                self.signal.finished.emit()
+                return
+
             if not os.path.exists(self.path):
                 os.makedirs(self.path)
 

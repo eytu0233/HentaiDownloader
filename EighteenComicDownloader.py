@@ -140,6 +140,14 @@ class EighteenComicDownloader(Downloader):
     def run(self):
         logging.info(f'Downloading : \"{self.path}\"')
 
+        # 檢查目錄是否已存在且非空
+        if self.check_directory_exists(self.path):
+            logging.info(f'Directory already exists and not empty, skipping download: \"{self.path}\"')
+            self.signal.status.emit(STATUS_DOWNLOADED)
+            self.signal.progress.emit(100)
+            self.signal.finished.emit()
+            return
+
         opener = urllib.request.build_opener()
         opener.addheaders = [('User-Agent',
                               'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1941.0 Safari/537.36')]

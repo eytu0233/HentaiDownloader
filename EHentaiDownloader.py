@@ -100,11 +100,20 @@ class EHentaiParser(Parser):
 class EHentaiDownloader(Downloader):
 
     def __init__(self, path, name, pool, images):
-        super(EHentaiDownloader, self).__init__(f'{path}{name}', name, pool)
+        super(EHentaiDownloader, self).__init__(f'{path}{self.format_name(name)}', name, pool)
         self.images = images
 
     def run(self):
         logging.debug(f'download {self.path}')
+
+        # 檢查目錄是否已存在且非空
+        if self.check_directory_exists(self.path):
+            logging.info(f'Directory already exists and not empty, skipping download: \"{self.path}\"')
+            self.signal.status.emit(STATUS_DOWNLOADED)
+            self.signal.progress.emit(100)
+            self.signal.finished.emit()
+            return
+
         self.signal.status.emit(STATUS_DOWNLOADING)
         total = len(self.images)
         downloaded = 0

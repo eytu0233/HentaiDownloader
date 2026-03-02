@@ -1,9 +1,11 @@
 import logging
 import os
 import sys
+import csv
+from datetime import datetime
 from PIL import Image
 
-from PySide2.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QProgressBar, QHeaderView, QLabel, QMenu
+from PySide2.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QProgressBar, QHeaderView, QLabel, QMenu, QFileDialog, QMessageBox, QAction
 from PySide2.QtCore import QThreadPool, Qt, QMutex, QPoint, QThread, QRunnable
 
 from EHentaiDownloader import EHentaiParser
@@ -13,11 +15,9 @@ from WNACGDownloader import WNACGParser
 from AHentaiDownloader import AHentaiParser
 from ImHentaiDownloader import ImHentaiParser
 from ui import Ui_MainWindow
+from Downloader import (STATUS_PENDING, STATUS_DOWNLOADING, STATUS_DOWNLOADED,
+                        STATUS_FAIL, STATUS_UNZIP_FAIL, STATUS_UNZIPING, STATUS_UNZIP)
 
-STATUS_PENDING = '列隊中'
-STATUS_DOWNLOADING = '下載中'
-STATUS_DOWNLOADED = '下載完成'
-STATUS_FAIL = '下載失敗'
 IMAGE_PART_NUM = 10
 
 
@@ -44,6 +44,9 @@ class MainWindow(QMainWindow):
         self.ui.lineEditFilePath.setText(u"E:\\video\合集\\downloads\\")
         self.ui.lineEditDownloadUrl.setText('')
         self.ui.btnStartDownload.pressed.connect(self.click_event)
+
+        # 添加選單列功能
+        self.setup_menubar()
 
         self.clipBoard = QApplication.clipboard()
         self.clipBoard.dataChanged.connect(self.monitor_clipboard)
@@ -119,6 +122,82 @@ class MainWindow(QMainWindow):
                 self.parserThreadPool.start(parser)
         logging.debug(f'End start_parser : "{url}"')
 
+    def setup_menubar(self):
+        """設置選單列"""
+        # 創建「工具」選單
+        tool_menu = self.ui.menubar.addMenu(u'工具(&T)')
+
+        # 添加「導出失敗項目」動作
+        export_action = QAction(u'導出失敗項目(&E)', self)
+        export_action.setStatusTip(u'導出下載失敗和解壓縮失敗的項目到CSV文件')
+        export_action.triggered.connect(self.export_failed_downloads)
+        tool_menu.addAction(export_action)
+
+        # 可以在此添加更多工具選單項目
+        tool_menu.addSeparator()
+
+        # 添加「清除失敗項目」動作（未來功能）
+        # clear_action = QAction(u'清除失敗項目', self)
+        # clear_action.triggered.connect(self.clear_failed_downloads)
+        # tool_menu.addAction(clear_action)
+
+    def export_failed_downloads(self):
+        """導出失敗的下載項目到CSV文件（包含下載失敗和解壓縮失敗）"""
+        failed_items = []
+
+        # 收集失敗的項目（包含下載失敗和解壓縮失敗）
+        for i, downloader in enumerate(self.downloaderList):
+            if downloader.status == STATUS_FAIL or downloader.status == STATUS_UNZIP_FAIL:
+                url = self.parserList[i].url if i < len(self.parserList) else 'N/A'
+                failed_items.append({
+                    'name': downloader.name,
+                    'url': url,
+                    'path': downloader.path,
+                    'status': downloader.status
+                })
+
+        if not failed_items:
+            QMessageBox.information(self, u'導出結果', u'沒有失敗的下載項目')
+            return
+
+        # 選擇保存位置
+        default_filename = f"failed_downloads_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            u'保存失敗項目列表',
+            default_filename,
+            u'CSV文件 (*.csv);;文本文件 (*.txt);;所有文件 (*.*)'
+        )
+
+        if not file_path:
+            return
+
+        try:
+            # 寫入CSV文件
+            with open(file_path, 'w', newline='', encoding='utf-8-sig') as csvfile:
+                fieldnames = ['檔案名稱', 'URL', '下載路徑', '失敗狀態']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                writer.writeheader()
+                for item in failed_items:
+                    writer.writerow({
+                        '檔案名稱': item['name'],
+                        'URL': item['url'],
+                        '下載路徑': item['path'],
+                        '失敗狀態': item['status']
+                    })
+
+            QMessageBox.information(
+                self,
+                u'導出成功',
+                f'成功導出 {len(failed_items)} 個失敗項目到:\n{file_path}'
+            )
+            logging.info(f'Exported {len(failed_items)} failed items to {file_path}')
+
+        except Exception as e:
+            QMessageBox.critical(self, u'導出失敗', f'導出時發生錯誤:\n{str(e)}')
+            logging.error(f'Failed to export: {e}')
+
     def add_download_item(self, downloader):
         for historyDownloader in self.downloaderList:
             if historyDownloader.name == downloader.name and \
@@ -132,7 +211,10 @@ class MainWindow(QMainWindow):
         row_count = table.rowCount()
         table.setRowCount(row_count + 1)
 
-        comic_name_cell = QTableWidgetItem(comic_name)
+        # 限制顯示長度為 32 個字元
+        display_name = comic_name if len(comic_name) <= 32 else comic_name[:29] + '...'
+        comic_name_cell = QTableWidgetItem(display_name)
+        comic_name_cell.setToolTip(comic_name)  # 完整名稱顯示在提示中
         comic_name_cell.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
         progress_bar_cell = QProgressBar()
         progress_bar_cell.setRange(0, 100)
