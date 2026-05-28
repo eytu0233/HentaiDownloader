@@ -97,16 +97,16 @@ class NHentaiParser(Parser):
             logging.debug(f'comic name = \"{comic_name}\"')
 
             a = soup.find('img', 'lazyload')
-            data_src = a['data-src']
-            logging.debug(f'data_src = \"{data_src}\"')
-            match = re.match('//t.*.nhentai.net/galleries/(\\d+)/cover.*', data_src)
+            src = a['src']
+            logging.debug(f'src = \"{src}\"')
+            match = re.match('(?:https?:)?//t.*.nhentai.net/galleries/(\\d+)/cover.*', src)
             if match is None or match.group(1) is None:
                 raise Exception("Can't parse media_id!")
 
             media_id = match.group(1)
             logging.debug(f'media_id = {media_id}')
 
-            div = soup.find_all('div', class_='tag-container field-name')
+            div = soup.select('div.tag-container.field-name')
             pages = 0
             matcher = re.compile('Pages:(\\d+)')
             for sub_div in div:
@@ -142,7 +142,7 @@ class NHentaiParser(Parser):
             section = soup.find('section', id='image-container')
             img = section.find('img')
             logging.debug(f'img = {img}')
-            match = re.match('//i(\\d+).nhentai.net/galleries/(\\d+)/(\\d+).([a-zA-Z]+)', img['src'])
+            match = re.match('(?:https?:)?//i(\\d+).nhentai.net/galleries/(\\d+)/(\\d+).([a-zA-Z]+)', img['src'])
             if match is None or match.group(1) is None:
                 raise Exception("Can't parse url backup!")
             backup = match.group(1)
@@ -158,7 +158,7 @@ class NHentaiParser(Parser):
             section = soup.find('section', id='image-container')
             img = section.find('img')
             logging.debug(f'img = {img}')
-            match = re.match('//i(\\d+).nhentai.net/galleries/(\\d+)/(\\d+).([a-zA-Z]+)', img['src'])
+            match = re.match('(?:https?:)?//i(\\d+).nhentai.net/galleries/(\\d+)/(\\d+).([a-zA-Z]+)', img['src'])
             if match is None or match.group(4) is None:
                 raise Exception("Can't parse ext2!")
             ext2 = match.group(4)

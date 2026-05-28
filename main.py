@@ -3,10 +3,11 @@ import os
 import sys
 import csv
 from datetime import datetime
+from html import escape as html_escape
 from PIL import Image
 
-from PySide2.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QProgressBar, QHeaderView, QLabel, QMenu, QFileDialog, QMessageBox, QAction
-from PySide2.QtCore import QThreadPool, Qt, QMutex, QPoint, QThread, QRunnable
+from PySide2.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QProgressBar, QHeaderView, QLabel, QMenu, QFileDialog, QMessageBox, QAction, QTextEdit, QSplitter
+from PySide2.QtCore import QThreadPool, Qt, QMutex, QPoint, QThread, QRunnable, Signal, QObject
 
 from EHentaiDownloader import EHentaiParser
 from EighteenComicDownloader import EighteenComicParser
@@ -19,6 +20,49 @@ from Downloader import (STATUS_PENDING, STATUS_DOWNLOADING, STATUS_DOWNLOADED,
                         STATUS_FAIL, STATUS_UNZIP_FAIL, STATUS_UNZIPING, STATUS_UNZIP)
 
 IMAGE_PART_NUM = 10
+
+
+# PyCharm-style console colors
+_LOG_LEVEL_COLORS = {
+    'DEBUG':    ('#6a9153', '#808080'),   # (level_label_color, message_color)
+    'INFO':     ('#a9b7c6', '#a9b7c6'),
+    'WARNING':  ('#bbb529', '#bbb529'),
+    'ERROR':    ('#ff6b68', '#ff6b68'),
+    'CRITICAL': ('#ff6b68', '#ff6b68'),
+}
+_LOG_TIME_COLOR  = '#606366'
+_LOG_SEP_COLOR   = '#555555'
+
+
+class LogSignal(QObject):
+    message = Signal(str)
+
+
+class DiscordUrlSignal(QObject):
+    url_received = Signal(str)
+
+
+class LogHandler(logging.Handler):
+    def __init__(self, signal_obj):
+        super().__init__()
+        self.signal_obj = signal_obj
+
+    def emit(self, record):
+        try:
+            level = record.levelname
+            level_color, msg_color = _LOG_LEVEL_COLORS.get(level, ('#a9b7c6', '#a9b7c6'))
+            time_str = datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S') + f',{record.msecs:03.0f}'
+            msg = html_escape(record.getMessage())
+            html = (
+                f'<span style="color:{_LOG_TIME_COLOR}">{time_str}</span>'
+                f'<span style="color:{_LOG_SEP_COLOR}"> - </span>'
+                f'<span style="color:{level_color}">{level}</span>'
+                f'<span style="color:{_LOG_SEP_COLOR}"> : </span>'
+                f'<span style="color:{msg_color}">{msg}</span>'
+            )
+            self.signal_obj.message.emit(html)
+        except Exception:
+            self.handleError(record)
 
 
 class MainWindow(QMainWindow):
@@ -48,6 +92,39 @@ class MainWindow(QMainWindow):
         # 添加選單列功能
         self.setup_menubar()
 
+        # 建立 log 面板（PyCharm 風格）
+        self.logPanel = QTextEdit()
+        self.logPanel.setReadOnly(True)
+        self.logPanel.setObjectName("logPanel")
+        self.logPanel.setStyleSheet("""
+            QTextEdit {
+                background-color: #1e1e2e;
+                color: #a9b7c6;
+                font-family: Consolas, 'Courier New', monospace;
+                font-size: 9pt;
+                border: none;
+                border-top: 1px solid #3c3f41;
+                padding: 2px 4px;
+            }
+        """)
+        self.logPanel.document().setDefaultStyleSheet(
+            "body { margin: 0; padding: 0; } p { margin: 0; padding: 0; line-height: 1.15; }"
+        )
+
+        # 用 QSplitter 分割 tabWidget 與 log 面板
+        splitter = QSplitter(Qt.Vertical)
+        splitter.addWidget(self.ui.tabWidget)
+        splitter.addWidget(self.logPanel)
+        splitter.setSizes([430, 120])
+        self.ui.verticalLayout.addWidget(splitter)
+
+        # 掛載 logging handler，將 log 導入面板
+        self.logSignal = LogSignal()
+        self.logSignal.message.connect(self._append_log)
+        log_handler = LogHandler(self.logSignal)
+        log_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s : %(message)s'))
+        logging.getLogger().addHandler(log_handler)
+
         self.clipBoard = QApplication.clipboard()
         self.clipBoard.dataChanged.connect(self.monitor_clipboard)
         self.mimeData = self.clipBoard.mimeData()
@@ -67,6 +144,20 @@ class MainWindow(QMainWindow):
         self.ahentaiThreadPool = QThreadPool()
         self.imhentaiThreadPool = QThreadPool()
 
+        self._discord_url_signal = DiscordUrlSignal()
+        self._discord_url_signal.url_received.connect(self.start_parser)
+        self._discord_bot = None
+        self._start_discord_bot()
+
+    def _append_log(self, html):
+        cursor = self.logPanel.textCursor()
+        cursor.movePosition(cursor.End)
+        if not self.logPanel.document().isEmpty():
+            cursor.insertBlock()
+        cursor.insertHtml(html)
+        scrollbar = self.logPanel.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+
     def generate_menu(self, pos):
         row_num = -1
         for i in self.ui.tableWidgetDownload.selectionModel().selection().indexes():
@@ -82,7 +173,13 @@ class MainWindow(QMainWindow):
                 logging.debug(f'row_num : {row_num} url : {self.parserList[row_num].url}')
                 self.clipBoard.setText(self.parserList[row_num].url)
             if action == redownload_action:
-                logging.debug(f'item2')
+                downloader = self.downloaderList[row_num]
+                logging.debug(f'重新下載 : {downloader.name}')
+                table = self.ui.tableWidgetDownload
+                progress_bar = table.cellWidget(row_num, 2)
+                progress_bar.setValue(0)
+                downloader.signal.status.emit(STATUS_PENDING)
+                downloader.start_download()
             if action == rearrange_action:
                 dir_path = self.parserList[row_num].path
                 logging.debug(f'圖片修正 : {dir_path}')
@@ -115,11 +212,17 @@ class MainWindow(QMainWindow):
             ImHentaiParser(url, path, self.imhentaiThreadPool)
         ]
 
+        matched = False
         for parser in parsers:
             if parser.check():
+                matched = True
                 self.parserList.append(parser)
                 parser.signal.parsed.connect(self.add_download_item)
                 self.parserThreadPool.start(parser)
+
+        if not matched and url.startswith('http') and self._discord_bot:
+            self._discord_bot.notify(f"❓ 解析失敗，不支援此網址：\n`{url}`")
+
         logging.debug(f'End start_parser : "{url}"')
 
     def setup_menubar(self):
@@ -198,6 +301,36 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, u'導出失敗', f'導出時發生錯誤:\n{str(e)}')
             logging.error(f'Failed to export: {e}')
 
+    def _on_download_status(self, name: str, status: str):
+        if self._discord_bot is None:
+            return
+        if status == STATUS_DOWNLOADED:
+            self._discord_bot.notify(f"✅ 下載完成：{name}")
+        elif status == STATUS_UNZIP:
+            self._discord_bot.notify(f"📦 解壓縮完成：{name}")
+        elif status == STATUS_FAIL:
+            self._discord_bot.notify(f"❌ 下載失敗：{name}")
+        elif status == STATUS_UNZIP_FAIL:
+            self._discord_bot.notify(f"⚠️ 解壓縮失敗：{name}")
+
+    def _start_discord_bot(self):
+        config_path = os.path.join(os.path.dirname(__file__), "discord_bot", "config.json")
+        try:
+            from discord_bot.discord_bot import DiscordBot
+            bot = DiscordBot(config_path)
+            bot.register_url_callback(lambda url: self._discord_url_signal.url_received.emit(url))
+            bot.start()
+            self._discord_bot = bot
+            logging.info("[DiscordBot] 已啟動")
+        except FileNotFoundError:
+            logging.info("[DiscordBot] 未找到 discord_bot/config.json，跳過啟動")
+        except ValueError as e:
+            logging.warning(f"[DiscordBot] 設定錯誤，跳過啟動：{e}")
+        except ImportError as e:
+            logging.warning(f"[DiscordBot] 缺少 discord 套件，跳過啟動：{e}")
+        except Exception as e:
+            logging.error(f"[DiscordBot] 啟動失敗：{e}")
+
     def add_download_item(self, downloader):
         for historyDownloader in self.downloaderList:
             if historyDownloader.name == downloader.name and \
@@ -226,6 +359,7 @@ class MainWindow(QMainWindow):
         table.setCellWidget(row_count, 2, progress_bar_cell)
 
         downloader.signal.status.connect(status_cell.setText)
+        downloader.signal.status.connect(lambda s, n=comic_name: self._on_download_status(n, s))
         downloader.signal.progress.connect(progress_bar_cell.setValue)
         downloader.start_download()
 
@@ -240,6 +374,7 @@ if __name__ == "__main__":
     logging.getLogger('chardet.charsetprober').setLevel(logging.WARNING)
     logging.getLogger('concurrent').setLevel(logging.WARNING)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('discord').setLevel(logging.WARNING)
 
     app = QApplication(sys.argv)
 

@@ -22,7 +22,7 @@ class WNACGParser(Parser):
         self.chrome_ver = 0
 
     def check(self):
-        match = re.match('^https?://www.wnacg.(org|com)/photos-index-(aid-\\d+)?', self.url)
+        match = re.match('^https?://(www\\.)?wnacg.(org|com)/photos-index-(aid-\\d+)?', self.url)
         if match is not None:
             logging.info(f'parse_wnacg')
             return True
@@ -69,18 +69,18 @@ class WNACGParser(Parser):
         self.get_chrome_version()
         # logging.info(f'chrome version = {self.chrome_ver}')
 
-        match = re.match('https?://www.wnacg.(org|com)/photos-index(-page-\\d+)?-aid-(\\d+).html', self.url)
+        match = re.match('https?://(www\\.)?wnacg.(org|com)/photos-index(-page-\\d+)?-aid-(\\d+).html', self.url)
         if match is None:
             logging.error(f"url is not match!!")
             return None
 
-        index = match.group(3)
+        index = match.group(4)
         if index is None:
             logging.error(f"{index} is not match!!")
             return None
         # logging.info(f"index = {index}")
 
-        dns = match.group(1)
+        dns = match.group(2)
         if index is None:
             logging.error(f"dns is not match!!")
             return None
@@ -91,7 +91,7 @@ class WNACGParser(Parser):
             "User-Agent": f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{self.chrome_ver}.0.0.0 Safari/537.36'
         }
         # logging.info(f"headers = {headers}")
-        downloadPageUrl = f"http://www.wnacg.{dns}/download-index-aid-{index}.html"
+        downloadPageUrl = f"http://wnacg.{dns}/download-index-aid-{index}.html"
         req = urllib.request.Request(downloadPageUrl, headers=headers)
         result = urllib.request.urlopen(req, timeout=5).read()
         if result is None:
@@ -289,6 +289,7 @@ class WNACGDownloader(Downloader):
         except Exception as e:
             logging.error(e)
             self.signal.status.emit(STATUS_UNZIP_FAIL)
+            return
         self.signal.status.emit(STATUS_UNZIP)
 
     @staticmethod

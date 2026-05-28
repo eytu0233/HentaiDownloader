@@ -49,7 +49,7 @@ echo.
 echo ========================================
 echo 整理模式 - 測試運行
 echo ========================================
-python organize_by_author.py "%DOWNLOAD_PATH%" --dry-run
+uv run python organize_by_author.py "%DOWNLOAD_PATH%" --dry-run
 goto :done
 
 :run
@@ -57,7 +57,7 @@ echo.
 echo ========================================
 echo 整理模式 - 正式執行
 echo ========================================
-python organize_by_author.py "%DOWNLOAD_PATH%"
+uv run python organize_by_author.py "%DOWNLOAD_PATH%"
 goto :done
 
 :custom_dry
@@ -66,7 +66,7 @@ echo ========================================
 echo 整理模式 - 自訂路徑測試運行
 echo ========================================
 set /p CUSTOM_PATH=請輸入下載目錄路徑:
-python organize_by_author.py "%CUSTOM_PATH%" --dry-run
+uv run uv run python organize_by_author.py "%CUSTOM_PATH%" --dry-run
 goto :done
 
 :custom_run
@@ -75,7 +75,7 @@ echo ========================================
 echo 整理模式 - 自訂路徑正式執行
 echo ========================================
 set /p CUSTOM_PATH=請輸入下載目錄路徑:
-python organize_by_author.py "%CUSTOM_PATH%"
+uv run python organize_by_author.py "%CUSTOM_PATH%"
 goto :done
 
 :merge_dry
@@ -90,7 +90,7 @@ echo 如果目標目錄沒有對應的作者目錄，則跳過。
 echo.
 set /p SOURCE_PATH=請輸入源目錄路徑:
 set /p TARGET_PATH=請輸入目標目錄路徑:
-python organize_by_author.py "%SOURCE_PATH%" "%TARGET_PATH%" --merge --dry-run
+uv run python organize_by_author.py "%SOURCE_PATH%" "%TARGET_PATH%" --merge --dry-run
 goto :done
 
 :merge_run
@@ -105,7 +105,7 @@ echo 如果目標目錄沒有對應的作者目錄，則跳過。
 echo.
 set /p SOURCE_PATH=請輸入源目錄路徑:
 set /p TARGET_PATH=請輸入目標目錄路徑:
-python organize_by_author.py "%SOURCE_PATH%" "%TARGET_PATH%" --merge
+uv run python organize_by_author.py "%SOURCE_PATH%" "%TARGET_PATH%" --merge
 goto :done
 
 :clean_dry
@@ -113,7 +113,7 @@ echo.
 echo ========================================
 echo 清除模式 - 測試運行
 echo ========================================
-python organize_by_author.py "%DOWNLOAD_PATH%" --clean --dry-run
+uv run python organize_by_author.py "%DOWNLOAD_PATH%" --clean --dry-run
 goto :done
 
 :clean_run
@@ -121,7 +121,7 @@ echo.
 echo ========================================
 echo 清除模式 - 正式執行
 echo ========================================
-python organize_by_author.py "%DOWNLOAD_PATH%" --clean
+uv run python organize_by_author.py "%DOWNLOAD_PATH%" --clean
 goto :done
 
 :done
