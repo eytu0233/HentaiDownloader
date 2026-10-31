@@ -30,3 +30,6 @@ Thumbs.db
 # Application specific
 chromedriver.exe
 downloader.exe
+
+# Secrets
+discord_bot/config.json

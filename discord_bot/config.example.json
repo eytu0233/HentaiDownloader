@@ -1,0 +1,7 @@
+{
+  "discord_bot": {
+    "token": "YOUR_BOT_TOKEN",
+    "channel_id": 0,
+    "allowed_user_ids": []
+  }
+}

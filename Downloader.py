@@ -23,6 +23,9 @@ class Parser(QRunnable):
         self.path = path
         self.pool = pool
         self.signal = self.ParserSignal()
+        # 同 Downloader：關閉 autoDelete，避免 run() 結束後底層 C++ 物件被刪除，
+        # 確保 parserList 中的物件可安全重複使用。
+        self.setAutoDelete(False)
 
     @abc.abstractmethod
     def check(self):
@@ -43,6 +46,11 @@ class Downloader(QRunnable):
         self.status = STATUS_PENDING
         self.signal = self.DownloadSignal()
         self.signal.status.connect(self.statusSlot)
+        # QRunnable 預設 autoDelete=True，run() 結束後執行緒池會刪除底層 C++ 物件，
+        # 導致「重新下載」呼叫 pool.start(self) 時拋出
+        # RuntimeError: Internal C++ object already deleted。
+        # 物件生命週期由 downloaderList 持有，關閉自動刪除即可安全重複使用。
+        self.setAutoDelete(False)
 
     def name(self):
         return self.name
