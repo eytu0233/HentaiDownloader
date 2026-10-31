@@ -45,13 +45,28 @@ class EHentaiParser(Parser):
             soup = BeautifulSoup(result, 'html.parser')
 
         picture_pages = []
-        divs = soup.find_all('div', class_='gdtm')
-        for div in divs:
-            picture_page = div.find('a')['href']
-            picture_pages.append(picture_page)
-            #logging.debug(picture_page)
+        # 新版版面：<div id="gdt"><a href=".../s/..."><div ...></div></a>...
+        gdt = soup.find('div', id='gdt')
+        if gdt is not None:
+            for a in gdt.find_all('a', href=True):
+                picture_pages.append(a['href'])
+        else:
+            # 舊版版面：<div class="gdtm"><a href=...>
+            for div in soup.find_all('div', class_='gdtm'):
+                picture_pages.append(div.find('a')['href'])
 
         return picture_pages
+
+    def parse_ehentai_max_page_index(self, soup):
+        # 從分頁列 table.ptt 取得最大的 ?p= 值（第一頁為 0）
+        max_index = 0
+        ptt = soup.find('table', class_='ptt')
+        if ptt is not None:
+            for a in ptt.find_all('a', href=True):
+                match = re.search('[?&]p=(\\d+)', a['href'])
+                if match is not None:
+                    max_index = max(max_index, int(match.group(1)))
+        return max_index
 
     def run(self):
         try:
@@ -79,8 +94,12 @@ class EHentaiParser(Parser):
             imgs = []
             with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
                 all_target = self.parse_ehentai_picture_pages(None, soup=soup)
-                for page in range(1, int(pages / 40) + 1):
-                    all_target = all_target + self.parse_ehentai_picture_pages(f'{self.url}?p={page}')
+                if len(all_target) == 0:
+                    raise Exception("Can't parse picture pages!")
+                base_url = self.url.split('?', 1)[0]
+                for page in range(1, self.parse_ehentai_max_page_index(soup) + 1):
+                    all_target = all_target + self.parse_ehentai_picture_pages(f'{base_url}?p={page}')
+                logging.debug(f'picture pages = {len(all_target)}')
                 future_to_url = {executor.submit(self.parse_ehentai_one_picture, url): url for url in all_target}
                 for future in concurrent.futures.as_completed(future_to_url):
                     url = future_to_url[future]
@@ -90,8 +109,11 @@ class EHentaiParser(Parser):
                         logging.error(f'{url} genrated an exception : {exc}')
                     else:
                         #logging.debug(f'img = {img}')
-                        imgs.append(img)
+                        if img is not None:
+                            imgs.append(img)
 
+            if len(imgs) == 0:
+                raise Exception("Can't parse any image!")
             self.signal.parsed.emit(EHentaiDownloader(self.path, comic_name, self.pool, imgs))
         except Exception as e:
             logging.error(e)
@@ -135,5 +157,5 @@ class EHentaiDownloader(Downloader):
                     percent = int(downloaded / total * 100)
                     self.signal.progress.emit(100 if percent > 100 else percent)
 
-        self.signal.status.emit(STATUS_DOWNLOADED if downloaded == total else STATUS_FAIL)
+        self.signal.status.emit(STATUS_DOWNLOADED if total > 0 and downloaded == total else STATUS_FAIL)
         self.signal.finished.emit()

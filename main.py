@@ -372,6 +372,7 @@ if __name__ == "__main__":
                         ])
     logging.getLogger('requests').setLevel(logging.WARNING)
     logging.getLogger('chardet.charsetprober').setLevel(logging.WARNING)
+    logging.getLogger('charset_normalizer').setLevel(logging.WARNING)
     logging.getLogger('concurrent').setLevel(logging.WARNING)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
     logging.getLogger('discord').setLevel(logging.WARNING)
